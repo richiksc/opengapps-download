@@ -2,6 +2,7 @@ const https = require('follow-redirects').https;
 const fs = require('fs');
 const path = require('path');
 const md5 = require('md5');
+const readline = require('readline');
 const HumanFileSize = require('./lib/HumanFileSize');
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
@@ -14,8 +15,8 @@ function trackProgress(response, dataCb) {
   const maxDots = process.stdout.columns / 2;
   response.on('data', (chunk) => {
     totalSent += chunk.length;
-    process.stdout.clearLine();
-    process.stdout.cursorTo(0);
+    readline.clearLine(process.stdout);
+    readline.cursorTo(process.stdout, 0);
     process.stdout
       .write(`${ Math.round((totalSent / pkgSize) * 100) }%  ${HumanFileSize.humanize(totalSent, pkgSizeHuman.unit).value} / ${pkgSizeHuman} `);
     Array(Math.round((totalSent / pkgSize) * maxDots)).fill(0).forEach(() => { process.stdout.write('.'); })
