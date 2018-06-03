@@ -1,0 +1,30 @@
+{
+  "name": "opengapps-download",
+  "version": "1.0.0",
+  "keywords": [
+    "opengapps",
+    "open gapps"
+  ],
+  "description": "A utility to download OpenGApps packages",
+  "main": "index.js",
+  "bin": {
+    "download-gapps": "bin/download-gapps.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richiksc/opengapps-download.git"
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "dependencies": {
+    "follow-redirects": "^1.5.0",
+    "md5": "^2.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Richik SC <sc.richik@gmail.com>",
+  "license": "ISC"
+}
