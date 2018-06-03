@@ -8,17 +8,16 @@ const HumanFileSize = require('./lib/HumanFileSize');
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
 function addZ(n){return n<10? '0'+n:''+n;}
 
-function trackProgress(response, dataCb) {
+function trackProgress(response, out, dataCb) {
   const pkgSize = parseInt(response.headers['content-length'], 10);
   const pkgSizeHuman = HumanFileSize.auto(pkgSize);
   let totalSent = 0;
-  const maxDots = process.stdout.columns / 2;
+  const maxDots = out.columns / 2 || 20;
   response.on('data', (chunk) => {
     totalSent += chunk.length;
-    readline.clearLine(process.stdout);
-    readline.cursorTo(process.stdout, 0);
-    process.stdout
-      .write(`${ Math.round((totalSent / pkgSize) * 100) }%  ${HumanFileSize.humanize(totalSent, pkgSizeHuman.unit).value} / ${pkgSizeHuman} `);
+    readline.clearLine(out, 0);
+    readline.cursorTo(out, 0);
+    out.write(`${ Math.round((totalSent / pkgSize) * 100) }%  ${HumanFileSize.humanize(totalSent, pkgSizeHuman.unit).value} / ${pkgSizeHuman} `);
     Array(Math.round((totalSent / pkgSize) * maxDots)).fill(0).forEach(() => { process.stdout.write('.'); })
     if(dataCb != null) dataCb(chunk);
   });
@@ -58,9 +57,11 @@ class OpenGAppsDownload {
    * @param {string} config.variant - The variant of the OpenGApps package you
    * want to download, e.g. 'stock'. More information can be found on the
    * OpenGApps website (https://opengapps.org).
+   * @param {WriteableStream} [output=process.stdout] The stream to output logging to.
    */
-  constructor(config) {
+  constructor(config, output=process.stdout) {
     this.config = config;
+    this.output = output;
     this.baseUrl = `https://github.com/opengapps/${this.config.arch}/releases/download`;
     console.log('Using configuration', config);
   }
@@ -98,7 +99,7 @@ class OpenGAppsDownload {
           if (err == null) {
             console.log('Verifying integrity with MD5 checksums...');
             console.log(checksum, '..........', md5(buf));
-            console.log(checksum )
+            console.log(checksum == md5(buf) ? 'Msatches - verified' : 'WARN: MD5 checksums do not match.');
           } else console.error(err);
         });
       });
@@ -115,7 +116,7 @@ class OpenGAppsDownload {
       if (response.statusCode === 200) {
         let incoming = '';
         response.pipe(md5File);
-        trackProgress(response, (chunk) => { incoming += chunk; });
+        trackProgress(response, this.output, (chunk) => { incoming += chunk; });
         response.on('end', () => {
           md5sum = incoming.split(' ')[0];
           console.log('\nMD5 checksum downloaded to ', dldir, '/', md5FileName);
@@ -130,6 +131,7 @@ class OpenGAppsDownload {
     process.on('SIGINT', () => {
       md5Request.abort();
       md5File.close();
+      fs.unlinkSync(`${dldir}/${md5FileName}`);
       process.exit();
     });
   }
@@ -137,12 +139,12 @@ class OpenGAppsDownload {
   downloadPackage(dldir, release, cb) {
     const packageFileName = `open_gapps-${this.config.arch}-${this.config.api}-${this.config.variant}-${release}.zip`;
 
-    let packageFile = fs.createWriteStream(packageFileName);
+    let packageFile = fs.createWriteStream(`${dldir}/${packageFileName}`);
     const pkgRequest = https.get(`${this.baseUrl}/${release}/${packageFileName}`, (response) => {
       console.log(`Downloading OpenGApps package to ${dldir}/${packageFileName}...`);
       if (response.statusCode === 200) {
         response.pipe(packageFile);
-        trackProgress(response);
+        trackProgress(response, this.output);
         response.on('end', () => {
           console.log(
             `\n${this.config.variant} OpenGApps package for Android ${this.config.api} ${this.config.arch} downloaded to `,
@@ -158,6 +160,7 @@ class OpenGAppsDownload {
     process.on('SIGINT', () => {
       pkgRequest.abort();
       packageFile.close();
+      fs.unlinkSync(`${dldir}/${packageFileName}`);
       process.exit();
     });
   }

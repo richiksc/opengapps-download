@@ -28,7 +28,7 @@ const config = {
   variant: options.variant || 'stock'
 };
 
-const downloader = new OpenGAppsDownload(config);
+const downloader = new OpenGAppsDownload(config, process.stdout);
 
 if (options.release && options.release.length == 8 && !isNaN(options.release)) {
   downloader.downloadGApps(options.release);
