@@ -5,14 +5,14 @@
     "opengapps",
     "open gapps"
   ],
-  "description": "A utility to download OpenGApps packages",
+  "description": "A simple Node.js and command line utility to download OpenGApps packages.",
   "main": "index.js",
   "bin": {
-    "download-gapps": "bin/download-gapps.js"
+    "opengapps-downloader": "bin/download-gapps.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richiksc/opengapps-download.git"
+    "url": "git+https://github.com/richiksc/opengapps-downloader.git"
   },
   "directories": {
     "lib": "lib"
