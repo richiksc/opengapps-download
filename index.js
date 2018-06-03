@@ -76,20 +76,24 @@ class OpenGAppsDownload {
       }
     }, (res) => {
       console.log('Querying latest release metadata from GitHub...');
-      let releaseData = '';
-      res.on('data', (chunk) => {
-        releaseData += chunk;
-      });
-      res.on('end', () => {
-        const latestReleaseTag = JSON.parse(releaseData).tag_name;
-        this.downloadGApps(latestReleaseTag);
-      });
+      if (res.statusCode === 200) {
+        let releaseData = '';
+        res.on('data', (chunk) => {
+          releaseData += chunk;
+        });
+        res.on('end', () => {
+          const latestReleaseTag = JSON.parse(releaseData).tag_name;
+          this.downloadGApps(latestReleaseTag);
+        });
+      } else {
+        throw new DownloadError(`Query failed ${response.statusCode} https://api.github.com/repos/opengapps/${this.config.arch}/releases/latest?per_page=1`,
+          { code: 1 });
+      }
     });
   }
 
   downloadGApps(release) {
-    const today = new Date();
-    const dldir = `${today.getFullYear()}${months[today.getMonth()]}_${addZ(today.getDate())}`;
+    const dldir = this.config.dir || release;
     if(!fs.existsSync(dldir)) fs.mkdirSync(dldir);
     console.log(`Downloading OpenGApps from release ${release} to directory ${dldir}/`);
 
@@ -99,8 +103,15 @@ class OpenGAppsDownload {
           if (err == null) {
             console.log('Verifying integrity with MD5 checksums...');
             console.log(checksum, '..........', md5(buf));
-            console.log(checksum == md5(buf) ? 'Msatches - verified' : 'WARN: MD5 checksums do not match.');
-          } else console.error(err);
+            if(checksum == md5(buf)) {
+              console.log('Matches - verified');
+            } else {
+              console.warn('WARN: MD5 checksums do not match.');
+              throw new DownloadError('WARN: MD5 checksums do not match.', { code: 1 });
+            }
+          } else {
+            throw new DownloadError(err.message, { code: 1 });
+          }
         });
       });
     });
@@ -119,20 +130,23 @@ class OpenGAppsDownload {
         trackProgress(response, this.output, (chunk) => { incoming += chunk; });
         response.on('end', () => {
           md5sum = incoming.split(' ')[0];
-          console.log('\nMD5 checksum downloaded to ', dldir, '/', md5FileName);
-          console.log('Checksum: ', md5sum);
+          console.log('');
+          console.log('MD5 checksum downloaded to ', dldir, '/', md5FileName);
           process.removeAllListeners('SIGINT');
           if (cb != null) cb(md5sum);
         });
       } else {
-        console.error('Request failed ', response.statusCode, ' ', md5FileName);
+        md5Request.abort();
+        md5File.close();
+        fs.unlinkSync(`${dldir}/${md5FileName}`);
+        throw new DownloadError(`Request failed ${response.statusCode} ${md5FileName}`, { code: 1 });
       }
     });
     process.on('SIGINT', () => {
       md5Request.abort();
       md5File.close();
       fs.unlinkSync(`${dldir}/${md5FileName}`);
-      process.exit();
+      process.exit(1);
     });
   }
 
@@ -146,23 +160,34 @@ class OpenGAppsDownload {
         response.pipe(packageFile);
         trackProgress(response, this.output);
         response.on('end', () => {
+          console.log('');
           console.log(
-            `\n${this.config.variant} OpenGApps package for Android ${this.config.api} ${this.config.arch} downloaded to `,
+            `${this.config.variant} OpenGApps package for Android ${this.config.api} ${this.config.arch} downloaded to `,
             dldir, '/', packageFileName
           );
           process.removeAllListeners('SIGINT');
           if (cb != null) cb(packageFileName);
         });
       } else {
-        console.error('Request failed ', response.statusCode, ' ', packageFileName);
+        pkgRequest.abort();
+        packageFile.close();
+        fs.unlinkSync(`${dldir}/${packageFileName}`);
+        throw new DownloadError(`Request failed ${response.statusCode} ${packageFileName}`, {code: 1});
       }
     });
     process.on('SIGINT', () => {
       pkgRequest.abort();
       packageFile.close();
       fs.unlinkSync(`${dldir}/${packageFileName}`);
-      process.exit();
+      process.exit(1);
     });
+  }
+}
+
+class DownloadError extends Error {
+  constructor(message, data) {
+    super(message);
+    this.data = data;
   }
 }
 
